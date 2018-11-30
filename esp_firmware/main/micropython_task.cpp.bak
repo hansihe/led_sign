@@ -1,0 +1,78 @@
+#include <string.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
+#include "freertos/event_groups.h"
+
+extern "C" {
+#include "py/compile.h"
+#include "py/runtime.h"
+#include "py/gc.h"
+#include "py/stackctrl.h"
+
+    mp_import_stat_t mp_import_stat(const char *path) {
+        return MP_IMPORT_STAT_NO_EXIST;
+    }
+
+    void nlr_jump_fail(void *val) {
+        printf("NLR jump failed, val=%p\n", val);
+        esp_restart();
+    }
+
+}
+
+static char heap[8192*2];
+
+#include <stdarg.h>
+int DEBUG_printf(const char *__restrict fmt, ...) {
+  int ret;
+  va_list ap;
+  struct _reent *ptr = _REENT;
+
+  _REENT_SMALL_CHECK_INIT (ptr);
+  va_start (ap, fmt);
+  ret = _vfprintf_r (ptr, _stdout_r (ptr), fmt, ap);
+  va_end (ap);
+  return ret;
+}
+
+static mp_obj_t execute_from_str(const char *str) {
+    printf("Entering nlr\n");
+    nlr_buf_t nlr;
+    if (nlr_push(&nlr) == 0) {
+        mp_lexer_t *lex = mp_lexer_new_from_str_len(0/*MP_QSTR_*/, str, strlen(str), false);
+        mp_parse_tree_t pt = mp_parse(lex, MP_PARSE_FILE_INPUT);
+        mp_obj_t module_fun = mp_compile(&pt, lex->source_name, MP_EMIT_OPT_NONE, false);
+        printf("Entering function_0\n");
+        mp_call_function_0(module_fun);
+        nlr_pop();
+        return 0;
+    } else {
+        // uncaught exception
+        mp_obj_print_exception(&mp_plat_print, MP_OBJ_FROM_PTR(nlr.ret_val));
+        return (mp_obj_t)nlr.ret_val;
+    }
+}
+
+static void micropython_task(void *pvParameter) {
+
+    mp_stack_set_limit(10000 * (BYTES_PER_WORD / 4));
+    gc_init(heap, heap + sizeof(heap));
+    mp_init();
+
+    const char str[] = "print('Hello world of easy embedding!')";
+    if (execute_from_str(str)) {
+        printf("Error\n");
+    }
+
+    while (true) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+}
+
+void init_micropython_task() {
+    
+    xTaskCreate(&micropython_task, "micropython_task", 20000, NULL, 2, NULL);
+
+}

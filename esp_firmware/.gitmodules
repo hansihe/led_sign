@@ -1,0 +1,9 @@
+[submodule "micropython"]
+	path = components/micropython/repo
+	url = https://github.com/micropython/micropython.git
+[submodule "components/esp-gdbstub"]
+	path = components/esp-gdbstub
+	url = https://github.com/espressif/esp-gdbstub.git
+[submodule "components/micropython"]
+	path = components/micropython
+	url = https://github.com/micropython/micropython.git

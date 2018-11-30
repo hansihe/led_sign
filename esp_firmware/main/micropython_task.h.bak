@@ -1,0 +1,6 @@
+#ifndef _HEADER_MICROPYTHON_TASK
+#define _HEADER_MICROPYTHON_TASK
+
+void init_micropython_task();
+
+#endif
